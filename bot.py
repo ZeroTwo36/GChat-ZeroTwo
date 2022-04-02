@@ -134,6 +134,17 @@ class Globalchat(commands.Cog):
             view = Confirm()
             await ctx.send(embed=embed,view=view)
             
+            def getBotsAndUsers(guild):
+                bots = 0
+                users = 0
+                for m in guild.members:
+                    if m.bot:
+                        bots += 1
+                    else:
+                        users += 1
+                return (bots,users)
+
+            bots, users = getBotsAndUsers(ctx.guild)
             await view.wait()
             if not view.value:
                 await ctx.send(":x: Timed out!")
@@ -141,6 +152,7 @@ class Globalchat(commands.Cog):
             if view.value:
                 with open("globalchat.json","w",encoding="utf-8") as f:
                     json.dump(chats,f,indent=4)
+                await self.sendJoinMSG(f'┏📚 › Server-Name: `{ctx.guild.name}`\n┣👥 › Members: {users}👤 - {bots}🤖\n┗🚨 › Globalchat\'s Rules: `z.rules`')
                 await channel.send("THIS CHANNEL is now the Global chat!")
             else:
                 await ctx.send("The Globalchat Setup has been cancelled")
@@ -176,6 +188,17 @@ class Globalchat(commands.Cog):
         embed.add_field(name="User ID",value=user_id)
         embed.add_field(name="Reason",value=reason)
         await ctx.send(embed=embed)
+
+    
+    @client.message_command(name="Report Message")
+    async def rep(self,interaction: discord.Interaction, message: discord.Message):
+        if message.author.id == client.user.id:
+            m = await interaction.response.send_message("<a:discordloading:949624209703862272> Please wait - Your Request is being processed...", ephemeral=True)
+            await client.get_channel(959826541221666836).send(embeds=message.embeds)
+            await interaction.response.send_message("`✔` The Message was reported and will be reviewed by the Team as soon as possible", ephemeral=True)
+        else:
+            await interaction.response.send_message("`❌` The Message was not reported: `Message MUST be sent by this Bot`", ephemeral=True)
+
 
     async def sendAll(self,message:discord.Message):
         def getBotsAndUsers(guild):
@@ -260,6 +283,37 @@ class Globalchat(commands.Cog):
                 await self.sendAll(message)
 
         # await self.bot.process_commands(message)
+    
+    
+    async def sendAllSystem(self,message):
+        embed = discord.Embed(description=message,color=discord.Color.red())
+        embed.set_author(name="System Message!",icon_url=client.user.avatar.url)
+        embed.set_footer(text=f'I am a Bot and this message was sent automatically. Beep Bop.')
+        for server in chats['servers']:
+            guild:discord.Guild = self.bot.get_guild(int(server['guildid']))
+            if guild:
+                channel:discord.TextChannel = guild.get_channel(int(server['channelid']))
+                if channel:
+                  try:
+                    await channel.send(embed=embed)
+                  except:
+                      continue
+        await message.delete()
+
+    async def sendJoinMSG(self,message):
+        embed = discord.Embed(description=message,color=discord.Color.green(),title='Welcome!')
+        embed.set_author(name="A new Server joined the System!",icon_url=client.user.avatar.url)
+        embed.set_footer(text=f'I am a Bot and this message was sent automatically. Beep Bop.')
+        for server in chats['servers']:
+            guild:discord.Guild = self.bot.get_guild(int(server['guildid']))
+            if guild:
+                channel:discord.TextChannel = guild.get_channel(int(server['channelid']))
+                if channel:
+                  try:
+                    await channel.send(embed=embed)
+                  except:
+                      continue
+        await message.delete()
 
 client.add_cog(Globalchat(client))
 cfg.read("config.cfg")
