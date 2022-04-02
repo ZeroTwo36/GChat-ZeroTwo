@@ -2,6 +2,7 @@ import nextcord as discord
 import re
 import json
 import configparser
+import aiohttp
 from nextcord.ext import commands
 import os
 from profanity import has_profanity
@@ -23,6 +24,13 @@ intents = discord.Intents.default()
 intents.messages = True
 intents.members = True
 
+def Find(string):
+  
+    # findall() has been used 
+    # with valid conditions for urls in string
+    regex = r"(?i)\b((?:https?://|www\d{0,3}[.]|[a-z0-9.\-]+[.][a-z]{2,4}/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\(([^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s`!()\[\]{};:'\".,<>?«»“”‘’]))"
+    url = re.findall(regex,string)      
+    return [x[0] for x in url]
 if os.path.isfile("globalchat.json"):
     with open("globalchat.json",encoding="utf-8") as f:
         chats = json.load(f)
@@ -176,6 +184,14 @@ class Globalchat(commands.Cog):
         self.bans.append(user_id)
         await ctx.send(f"```{user_id} has been temp-banned!```")
     
+    async def pb(self,user_id,reason):
+        
+        with open("globalchat.json","r") as f:
+            gc = json.load(f)
+        gc["bans"].append({"id":user_id,"reason":reason})
+        with open("globalchat.json","w") as f:
+            json.dump(gc,f)
+
     @commands.command()
     @commands.is_owner()
     async def permaban(self,ctx,user_id,*,reason="Not provided"):
@@ -188,6 +204,10 @@ class Globalchat(commands.Cog):
         embed.add_field(name="User ID",value=user_id)
         embed.add_field(name="Reason",value=reason)
         await ctx.send(embed=embed)
+        alls = self.bot.get_all_members()
+        this = discord.utils.find(lambda m: m.id == user_id, alls)
+        d = f"{this} was banned from the Global Chat, because: `{reason}`"
+        await self.sendAllSystem(d)
 
     
     @client.message_command(name="Report Message")
@@ -228,6 +248,8 @@ class Globalchat(commands.Cog):
         embed = discord.Embed(description=f'{message.content}{await potentialReply(message)}',color=message.author.color)        
         embed.set_author(name=f"{'👤' if message.author.id != 899722893603274793 else '👑'} › {message.author.display_name}",icon_url=message.author.avatar.url)
         embed.set_footer(text=f'{message.guild.name} - {message.channel.name} (👤 {UserCount} - 🤖 {botCount} - 👥{UserCount+botCount})',icon_url=message.guild.icon.url or "https://www.svgrepo.com/show/353655/discord-icon.svg" if hasattr(message.guild.icon,"url") else "https://www.svgrepo.com/show/353655/discord-icon.svg")
+        if message.attachments:
+            embed.set_image(url=message.attachments[0].url)
         for server in chats['servers']:
             guild:discord.Guild = self.bot.get_guild(int(server['guildid']))
             if guild:
@@ -266,10 +288,20 @@ class Globalchat(commands.Cog):
                 for i in gc["bans"]:
                     print(i)
                     print(i["id"])
-                    print(message.author.id == i["id"])
                     if str(message.author.id) == i["id"]:
                         await message.channel.send(f"You have been prevented from Globalchatting ({i['reason']})")
                 if len(re.findall(self.URL_REGEX,message.content)) >0:
+
+                    async with aiohttp.ClientSession() as cs:
+                      for url in Find(message.content):
+                        resp = await cs.get(f"https://phish.sinking.yachts/v2/check/{url.replace('https://','').replace('http://','')}")  
+                        if "true" in await resp.text():
+                            await message.delete()
+                            member: discord.Member = message.author
+                            embed = discord.Embed(title="🔇 Member auto-banned")
+                            embed.add_field(name="Reason",value="Malicious Link Post")
+                            await self.sendAllSystem(f"🔇 Member auto-banned\n> {message.author} has tried to post a malicious Link into the Globalchat\nWhich got them banned.")
+                            return await self.pb(message.author.id,"Malicous Link posted")
                     embed = discord.Embed(title="⛔ Message not sent")
                     embed.add_field(name="Reason",value="You cannot post Links in the Globalchat")
                     embed.set_footer(text=f'{message.author} | {message.author.id}')
