@@ -1,6 +1,7 @@
 import nextcord as discord
 import re
 import json
+import configparser
 from nextcord.ext import commands
 import os
 from profanity import has_profanity
@@ -16,6 +17,7 @@ def get_ratelimit(message: discord.Message) -> typing.Optional[int]:
 
         return None
 
+cfg = configparser.ConfigParser()
 _cd = commands.CooldownMapping.from_cooldown(1, 12, commands.BucketType.member) # Change accordingly
 intents = discord.Intents.default()
 intents.messages = True
@@ -260,5 +262,6 @@ class Globalchat(commands.Cog):
         # await self.bot.process_commands(message)
 
 client.add_cog(Globalchat(client))
+cfg.read("config.cfg")
 if __name__ == "__main__":
-    client.run("OTA5ODgyNzk1NzY4MzE1OTg2.YZKwYw.mSsvdoHsR9qTEtSKadA1mNUBh-c")
+    client.run(cfg.get("main","HTTP_BOT_TOKEN"))
